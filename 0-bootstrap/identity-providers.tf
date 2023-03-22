@@ -1,7 +1,4 @@
-
-
 # tfdoc:file:description Workload Identity Federation provider definitions.
-
 locals {
   identity_providers = {
     for k, v in var.federated_identity_providers : k => merge(

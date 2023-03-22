@@ -1,7 +1,7 @@
 ############### top-level folders ###############
 
 module "dac-folder" {
-  source = "../modules/folder"
+  source = "./modules/folder"
   count  = var.fast_features.teams ? 1 : 0
   parent = "organizations/${var.organization.id}"
   name   = "dac"
@@ -13,7 +13,7 @@ module "dac-folder" {
 }
 
 module "dac-core-folder" {
-  source = "../modules/folder"
+  source = "./modules/folder"
   count  = var.fast_features.teams ? 1 : 0
   parent = "organizations/${var.organization.id}"
   name   = "dac-core"
@@ -36,7 +36,7 @@ module "dbn-dac-cicd-project" {
 
 
 module "dac-gcs" {
-  source        = "../modules/gcs"
+  source        = "./modules/gcs"
   count         = var.fast_features.teams ? 1 : 0
   project_id    = var.automation.project_id
   name          = "prod-resman-teams-0"
@@ -49,7 +49,7 @@ module "dac-gcs" {
 ################## SubFolders ##################
 
 module "dac-env-folder" {
-  source   = "../modules/folder"
+  source   = "./modules/folder"
   for_each = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   parent   = module.dac-folder.0.id
   name     = each.value.descriptive_name
@@ -57,7 +57,7 @@ module "dac-env-folder" {
 }
 
 module "dac-team-sa" {
-  source       = "../modules/iam-service-account"
+  source       = "./modules/iam-service-account"
   for_each     = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   project_id   = module.dbn-dac-cicd-project.id
   name         = "prod-teams-${each.key}-0"
@@ -66,7 +66,7 @@ module "dac-team-sa" {
 }
 
 module "dac-team-gcs" {
-  source        = "../modules/gcs"
+  source        = "./modules/gcs"
   for_each      = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   project_id    = var.automation.project_id
   name          = "prod-teams-${each.key}-0"
@@ -79,7 +79,7 @@ module "dac-team-gcs" {
 # per-team environment folders where project factory SAs can create projects
 
 module "dac-dev-folder" {
-  source   = "../modules/folder"
+  source   = "./modules/folder"
   for_each = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   parent   = module.dac-team-folder[each.key].id
   # naming: environment descriptive name
@@ -94,7 +94,7 @@ module "dac-dev-folder" {
 
 
 module "dac-uat-folder" {
-  source   = "../modules/folder"
+  source   = "./modules/folder"
   for_each = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   parent   = module.dac-team-folder[each.key].id
   # naming: environment descriptive name
@@ -109,7 +109,7 @@ module "dac-uat-folder" {
 
 
 module "dac-prod-folder" {
-  source   = "../modules/folder"
+  source   = "./modules/folder"
   for_each = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
   parent   = module.dac-team-folder[each.key].id
   # naming: environment descriptive name

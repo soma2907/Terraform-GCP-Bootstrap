@@ -1,5 +1,3 @@
-
-
 locals {
   gcs_storage_class = (
     length(split("-", var.locations.gcs)) < 2

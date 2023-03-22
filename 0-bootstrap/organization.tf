@@ -110,7 +110,7 @@ locals {
 }
 
 module "organization" {
-  source          = "../../../modules/organization"
+  source          = "../modules/organization"
   organization_id = "organizations/${var.organization.id}"
   # human (groups) IAM bindings
   group_iam = {
