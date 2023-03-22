@@ -29,6 +29,9 @@ variable "admin_email" {
   description = "Admin user email on Gsuite"
 }
 
+variable "billing_account" {
+  description = "The ID of the billing account to associate this project with"
+}
 
 # GCP authentication file
 variable "gcp_auth_file" {
@@ -65,16 +68,16 @@ variable "automation" {
   })
 }
 
-variable "billing_account" {
-  # tfdoc:variable:source 0-bootstrap
-  description = "Billing account id. If billing account is not part of the same org set `is_org_level` to `false`. To disable handling of billing IAM roles set `no_iam` to `true`."
-  type = object({
-    id           = string
-    is_org_level = optional(bool, true)
-    no_iam       = optional(bool, false)
-  })
-  nullable = false
-}
+# variable "billing_account" {
+#   # tfdoc:variable:source 0-bootstrap
+#   description = "Billing account id. If billing account is not part of the same org set `is_org_level` to `false`. To disable handling of billing IAM roles set `no_iam` to `true`."
+#   type = object({
+#     id           = string
+#     is_org_level = optional(bool, true)
+#     no_iam       = optional(bool, false)
+#   })
+#   
+# }
 
 variable "cicd_repositories" {
   description = "CI/CD repository configuration. Identity providers reference keys in the `automation.federated_identity_providers` variable. Set to null to disable, or set individual repositories to null if not needed."
@@ -176,15 +179,8 @@ variable "data_dir" {
 variable "fast_features" {
   # tfdoc:variable:source 0-0-bootstrap
   description = "Selective control for top-level FAST features."
-  type = object({
-    data_platform   = optional(bool, false)
-    gke             = optional(bool, false)
-    project_factory = optional(bool, false)
-    sandbox         = optional(bool, false)
-    teams           = optional(bool, false)
-  })
   default  = {}
-  nullable = false
+  
 }
 
 variable "groups" {
@@ -197,7 +193,7 @@ variable "groups" {
     gcp-security-admins = optional(string)
   })
   default  = {}
-  nullable = false
+  
 }
 
 variable "locations" {
@@ -215,7 +211,7 @@ variable "locations" {
     logging = "global"
     pubsub  = []
   }
-  nullable = false
+  
 }
 
 variable "organization" {
@@ -265,7 +261,7 @@ variable "tag_names" {
     environment = "environment"
     tenant      = "tenant"
   }
-  nullable = false
+
   validation {
     condition     = alltrue([for k, v in var.tag_names : v != null])
     error_message = "Tag names cannot be null."
