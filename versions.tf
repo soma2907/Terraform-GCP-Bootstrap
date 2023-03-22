@@ -1,5 +1,4 @@
 terraform {
-  required_version = ">= 1.3.0"
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -39,4 +38,8 @@ provider "gsuite" {
     "https://www.googleapis.com/auth/admin.directory.group",
     "https://www.googleapis.com/auth/admin.directory.group.member",
   ]
+}
+
+terraform {
+  experiments = [module_variable_optional_attrs]
 }

@@ -29,9 +29,6 @@ variable "admin_email" {
   description = "Admin user email on Gsuite"
 }
 
-variable "billing_account" {
-  description = "The ID of the billing account to associate this project with"
-}
 
 # GCP authentication file
 variable "gcp_auth_file" {
