@@ -293,8 +293,8 @@ variable "tag_names" {
   }
 }
 
-variable "team_folders" {
-  description = "Team folders to be created. Format is described in a code comment."
+variable "dac_folders" {
+  description = "Dac folders to be created. Format is described in a code comment."
   type = map(object({
     descriptive_name     = string
     group_iam            = map(list(string))
