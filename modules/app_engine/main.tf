@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-terraform {
-
-  required_providers {
-
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
+resource "google_app_engine_application" "main" {
+  project        = var.project_id
+  location_id    = var.location_id
+  auth_domain    = var.auth_domain
+  serving_status = var.serving_status
+  dynamic "feature_settings" {
+    for_each = var.feature_settings
+    content {
+      split_health_checks = lookup(feature_settings.value, "split_health_checks", true)
     }
   }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
 }
+

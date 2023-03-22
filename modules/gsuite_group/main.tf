@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-terraform {
-
-  required_providers {
-
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+locals {
+  domain_list = concat(data.google_organization.org.*.domain, ["dummy"])
+  domain      = var.domain == "" ? element(local.domain_list, 0) : var.domain
+  email       = var.name == "" ? "" : format("%s@%s", var.name, local.domain)
 }
+
+/*****************************************
+  Organization info retrieval
+ *****************************************/
+data "google_organization" "org" {
+  count        = var.domain == "" && var.name != "" ? 1 : 0
+  organization = var.org_id
+}
+

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-terraform {
+variable "project_id" {
+  description = "The GCP project where you want to manage the consumer quotas"
+  type        = string
+}
 
-  required_providers {
-
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+variable "consumer_quotas" {
+  description = "The quotas configuration you want to override for the project."
+  type = list(object({
+    service    = string,
+    metric     = string,
+    dimensions = map(string),
+    limit      = string,
+    value      = string,
+  }))
 }

@@ -249,24 +249,6 @@ variable "prefix" {
   }
 }
 
-variable "tag_names" {
-  description = "Customized names for resource management tags."
-  type = object({
-    context     = string
-    environment = string
-    tenant      = string
-  })
-  default = {
-    context     = "context"
-    environment = "environment"
-    tenant      = "tenant"
-  }
-
-  validation {
-    condition     = alltrue([for k, v in var.tag_names : v != null])
-    error_message = "Tag names cannot be null."
-  }
-}
 
 variable "dac_folders" {
   description = "Dac folders to be created. Format is described in a code comment."

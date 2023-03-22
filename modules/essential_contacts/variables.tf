@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2022 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-terraform {
+variable "project_id" {
+  description = "The GCP project you want to send Essential Contacts notifications for"
+  type        = string
+}
 
-  required_providers {
+variable "essential_contacts" {
+  description = "A mapping of users or groups to be assigned as Essential Contacts to the project, specifying a notification category"
+  type        = map(list(string))
+  default     = {}
+}
 
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+variable "language_tag" {
+  description = "Language code to be used for essential contacts notifiactions"
+  type        = string
 }

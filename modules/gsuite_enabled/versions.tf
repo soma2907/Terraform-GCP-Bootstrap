@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,25 @@
  */
 
 terraform {
-
+  required_version = ">= 0.13"
   required_providers {
-
     google = {
       source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
+      version = "~> 4.11"
+    }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 4.11"
+    }
+    gsuite = {
+      source  = "DeviaVir/gsuite"
+      version = "~> 0.1"
     }
   }
-
   provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
+    module_name = "blueprints/terraform/terraform-google-project-factory:gsuite_enabled/v14.1.0"
   }
-
+  provider_meta "google-beta" {
+    module_name = "blueprints/terraform/terraform-google-project-factory:gsuite_enabled/v14.1.0"
+  }
 }

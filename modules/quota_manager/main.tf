@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-terraform {
+locals {
+  consumer_quotas = { for index, quota in var.consumer_quotas : "${quota.service}-${quota.metric}" => quota }
+}
 
-  required_providers {
+resource "google_service_usage_consumer_quota_override" "override" {
+  provider = google-beta
+  for_each = local.consumer_quotas
 
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+  project        = var.project_id
+  service        = each.value.service
+  metric         = each.value.metric
+  limit          = each.value.limit
+  dimensions     = each.value.dimensions
+  override_value = each.value.value
+  force          = true
 }

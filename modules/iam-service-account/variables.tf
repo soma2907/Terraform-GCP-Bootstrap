@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2019 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,108 +14,73 @@
  * limitations under the License.
  */
 
-variable "description" {
-  description = "Optional description."
+variable "project_id" {
   type        = string
-  default     = null
-}
-
-variable "display_name" {
-  description = "Display name of the service account to create."
-  type        = string
-  default     = "Terraform-managed."
-}
-
-variable "generate_key" {
-  description = "Generate a key for service account."
-  type        = bool
-  default     = false
-}
-
-variable "iam" {
-  description = "IAM bindings on the service account in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_additive" {
-  description = "IAM additive bindings on the service account in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_billing_roles" {
-  description = "Billing account roles granted to this service account, by billing account id. Non-authoritative."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_folder_roles" {
-  description = "Folder roles granted to this service account, by folder id. Non-authoritative."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_organization_roles" {
-  description = "Organization roles granted to this service account, by organization id. Non-authoritative."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_project_roles" {
-  description = "Project roles granted to this service account, by project id."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_sa_roles" {
-  description = "Service account roles granted to this service account, by service account name."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_storage_roles" {
-  description = "Storage roles granted to this service account, by bucket name."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "name" {
-  description = "Name of the service account to create."
-  type        = string
+  description = "Project id where service account will be created."
 }
 
 variable "prefix" {
+  type        = string
   description = "Prefix applied to service account names."
-  type        = string
-  default     = null
-  validation {
-    condition     = var.prefix != ""
-    error_message = "Prefix cannot be empty, please use null instead."
-  }
-}
-
-variable "project_id" {
-  description = "Project id where service account will be created."
-  type        = string
-}
-
-variable "public_keys_directory" {
-  description = "Path to public keys data files to upload to the service account (should have `.pem` extension)."
-  type        = string
   default     = ""
 }
 
-variable "service_account_create" {
-  description = "Create service account. When set to false, uses a data source to reference an existing service account."
+variable "names" {
+  type        = list(string)
+  description = "Names of the service accounts to create."
+  default     = []
+}
+
+variable "project_roles" {
+  type        = list(string)
+  description = "Common roles to apply to all service accounts, project=>role as elements."
+  default     = []
+}
+
+variable "grant_billing_role" {
   type        = bool
+  description = "Grant billing user role."
+  default     = false
+}
+
+variable "billing_account_id" {
+  type        = string
+  description = "If assigning billing role, specificy a billing account (default is to assign at the organizational level)."
+  default     = ""
+}
+
+variable "grant_xpn_roles" {
+  type        = bool
+  description = "Grant roles for shared VPC management."
   default     = true
+}
+
+variable "org_id" {
+  type        = string
+  description = "Id of the organization for org-level roles."
+  default     = ""
+}
+
+variable "generate_keys" {
+  type        = bool
+  description = "Generate keys for service accounts."
+  default     = false
+}
+
+variable "display_name" {
+  type        = string
+  description = "Display names of the created service accounts (defaults to 'Terraform-managed service account')"
+  default     = "Terraform-managed service account"
+}
+
+variable "description" {
+  type        = string
+  description = "Default description of the created service accounts (defaults to no description)"
+  default     = ""
+}
+
+variable "descriptions" {
+  type        = list(string)
+  description = "List of descriptions for the created service accounts (elements default to the value of `description`)"
+  default     = []
 }

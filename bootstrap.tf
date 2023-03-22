@@ -25,7 +25,7 @@ module "dac-core-folder" {
 }
 
 module "dbn-dac-cicd-project" {
-  source            = "./modules/project"
+  source            = "./modules/gsuite_enabled"
   random_project_id = true
   name              = "dbn-dac-cicd"
   org_id            = var.org_id

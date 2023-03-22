@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,175 +14,53 @@
  * limitations under the License.
  */
 
-variable "contacts" {
-  description = "List of essential contacts for this resource. Must be in the form EMAIL -> [NOTIFICATION_TYPES]. Valid notification types are ALL, SUSPENSION, SECURITY, TECHNICAL, BILLING, LEGAL, PRODUCT_UPDATES."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "firewall_policies" {
-  description = "Hierarchical firewall policies created in this folder."
-  type = map(map(object({
-    action                  = string
-    description             = string
-    direction               = string
-    logging                 = bool
-    ports                   = map(list(string))
-    priority                = number
-    ranges                  = list(string)
-    target_resources        = list(string)
-    target_service_accounts = list(string)
-  })))
-  default  = {}
-  nullable = false
-}
-
-variable "firewall_policy_association" {
-  description = "The hierarchical firewall policy to associate to this folder. Must be either a key in the `firewall_policies` map or the id of a policy defined somewhere else."
-  type        = map(string)
-  default     = {}
-  nullable    = false
-}
-
-variable "firewall_policy_factory" {
-  description = "Configuration for the firewall policy factory."
-  type = object({
-    cidr_file   = string
-    policy_name = string
-    rules_file  = string
-  })
-  default = null
-}
-
-variable "folder_create" {
-  description = "Create folder. When set to false, uses id to reference an existing folder."
-  type        = bool
-  default     = true
-}
-
-variable "group_iam" {
-  description = "Authoritative IAM binding for organization groups, in {GROUP_EMAIL => [ROLES]} format. Group emails need to be static. Can be used in combination with the `iam` variable."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam" {
-  description = "IAM bindings in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_additive" {
-  description = "Non authoritative IAM bindings, in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "iam_additive_members" {
-  description = "IAM additive bindings in {MEMBERS => [ROLE]} format. This might break if members are dynamic values."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
-}
-
-variable "id" {
-  description = "Folder ID in case you use folder_create=false."
-  type        = string
-  default     = null
-}
-
-variable "logging_exclusions" {
-  description = "Logging exclusions for this folder in the form {NAME -> FILTER}."
-  type        = map(string)
-  default     = {}
-  nullable    = false
-}
-
-variable "logging_sinks" {
-  description = "Logging sinks to create for the organization."
-  type = map(object({
-    bq_partitioned_table = optional(bool)
-    description          = optional(string)
-    destination          = string
-    disabled             = optional(bool, false)
-    exclusions           = optional(map(string), {})
-    filter               = string
-    include_children     = optional(bool, true)
-    type                 = string
-  }))
-  default  = {}
-  nullable = false
-  validation {
-    condition = alltrue([
-      for k, v in var.logging_sinks :
-      contains(["bigquery", "logging", "pubsub", "storage"], v.type)
-    ])
-    error_message = "Type must be one of 'bigquery', 'logging', 'pubsub', 'storage'."
-  }
-  validation {
-    condition = alltrue([
-      for k, v in var.logging_sinks :
-      v.bq_partitioned_table != true || v.type == "bigquery"
-    ])
-    error_message = "Can only set bq_partitioned_table when type is `bigquery`."
-  }
-}
-
-variable "name" {
-  description = "Folder name."
-  type        = string
-  default     = null
-}
-
-variable "org_policies" {
-  description = "Organization policies applied to this folder keyed by policy name."
-  type = map(object({
-    inherit_from_parent = optional(bool) # for list policies only.
-    reset               = optional(bool)
-    rules = optional(list(object({
-      allow = optional(object({
-        all    = optional(bool)
-        values = optional(list(string))
-      }))
-      deny = optional(object({
-        all    = optional(bool)
-        values = optional(list(string))
-      }))
-      enforce = optional(bool) # for boolean policies only.
-      condition = optional(object({
-        description = optional(string)
-        expression  = optional(string)
-        location    = optional(string)
-        title       = optional(string)
-      }), {})
-    })), [])
-  }))
-  default  = {}
-  nullable = false
-}
-
-variable "org_policies_data_path" {
-  description = "Path containing org policies in YAML format."
-  type        = string
-  default     = null
-}
-
 variable "parent" {
-  description = "Parent in folders/folder_id or organizations/org_id format."
   type        = string
-  default     = null
-  validation {
-    condition     = var.parent == null || can(regex("(organizations|folders)/[0-9]+", var.parent))
-    error_message = "Parent must be of the form folders/folder_id or organizations/organization_id."
-  }
+  description = "The resource name of the parent Folder or Organization. Must be of the form folders/folder_id or organizations/org_id"
 }
 
-variable "tag_bindings" {
-  description = "Tag bindings for this folder, in key => tag value id format."
-  type        = map(string)
-  default     = null
+variable "names" {
+  type        = list(string)
+  description = "Folder names."
+  default     = []
 }
+
+variable "set_roles" {
+  type        = bool
+  description = "Enable setting roles via the folder admin variables."
+  default     = false
+}
+
+variable "per_folder_admins" {
+  type = map(object({
+    members = list(string)
+    roles   = list(string)
+  }))
+  description = "IAM-style roles per members per folder who will get extended permissions. If roles are not provided for a folder/member combination, the list provided as `folder_admin_roles` will be applied as default."
+  default     = {}
+}
+
+variable "all_folder_admins" {
+  type        = list(string)
+  description = "List of IAM-style members that will get the extended permissions across all the folders."
+  default     = []
+}
+
+variable "prefix" {
+  type        = string
+  description = "Optional prefix to enforce uniqueness of folder names."
+  default     = ""
+}
+
+variable "folder_admin_roles" {
+  type        = list(string)
+  description = "List of roles that will be applied to a folder if roles are not explictly specified in per_folder_admins"
+
+  default = [
+    "roles/owner",
+    "roles/resourcemanager.folderViewer",
+    "roles/resourcemanager.projectCreator",
+    "roles/compute.networkAdmin",
+  ]
+}
+

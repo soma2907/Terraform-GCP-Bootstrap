@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2019 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-terraform {
+output "bucket" {
+  description = "The created storage bucket"
+  value       = google_storage_bucket.bucket
+}
 
-  required_providers {
+output "name" {
+  description = "Bucket name."
+  value       = google_storage_bucket.bucket.name
+}
 
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+output "url" {
+  description = "Bucket URL."
+  value       = google_storage_bucket.bucket.url
 }

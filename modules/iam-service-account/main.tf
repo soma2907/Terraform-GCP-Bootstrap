@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2019 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,73 +15,91 @@
  */
 
 locals {
-  # https://github.com/hashicorp/terraform/issues/22405#issuecomment-591917758
-  key = try(
-    var.generate_key
-    ? google_service_account_key.key["1"]
-    : map("", null)
-  , {})
-  prefix                = var.prefix == null ? "" : "${var.prefix}-"
-  resource_email_static = "${local.prefix}${var.name}@${var.project_id}.iam.gserviceaccount.com"
-  resource_iam_email = (
-    local.service_account != null
-    ? "serviceAccount:${local.service_account.email}"
-    : local.resource_iam_email_static
-  )
-  resource_iam_email_static = "serviceAccount:${local.resource_email_static}"
-  service_account_id_static = "projects/${var.project_id}/serviceAccounts/${local.resource_email_static}"
-  service_account = (
-    var.service_account_create
-    ? try(google_service_account.service_account.0, null)
-    : try(data.google_service_account.service_account.0, null)
-  )
-  service_account_credential_templates = {
-    for file, _ in local.public_keys_data : file => jsonencode(
-      {
-        type : "service_account",
-        project_id : var.project_id,
-        private_key_id : split("/", google_service_account_key.upload_key[file].id)[5]
-        private_key : "REPLACE_ME_WITH_PRIVATE_KEY_DATA"
-        client_email : local.resource_email_static
-        client_id : local.service_account.unique_id,
-        auth_uri : "https://accounts.google.com/o/oauth2/auth",
-        token_uri : "https://oauth2.googleapis.com/token",
-        auth_provider_x509_cert_url : "https://www.googleapis.com/oauth2/v1/certs",
-        client_x509_cert_url : "https://www.googleapis.com/robot/v1/metadata/x509/${urlencode(local.resource_email_static)}"
-      }
-    )
-  }
-  public_keys_data = (
-    var.public_keys_directory != ""
-    ? {
-      for file in fileset("${path.root}/${var.public_keys_directory}", "*.pem")
-    : file => filebase64("${path.root}/${var.public_keys_directory}/${file}") }
-    : {}
+  account_billing       = var.grant_billing_role && var.billing_account_id != ""
+  org_billing           = var.grant_billing_role && var.billing_account_id == "" && var.org_id != ""
+  prefix                = var.prefix != "" ? "${var.prefix}-" : ""
+  xpn                   = var.grant_xpn_roles && var.org_id != ""
+  service_accounts_list = [for account in google_service_account.service_accounts : account]
+  emails_list           = [for account in local.service_accounts_list : account.email]
+  iam_emails_list       = [for email in local.emails_list : "serviceAccount:${email}"]
+  names                 = toset(var.names)
+  name_role_pairs       = setproduct(local.names, toset(var.project_roles))
+  project_roles_map_data = zipmap(
+    [for pair in local.name_role_pairs : "${pair[0]}-${pair[1]}"],
+    [for pair in local.name_role_pairs : {
+      name = pair[0]
+      role = pair[1]
+    }]
   )
 }
 
-
-data "google_service_account" "service_account" {
-  count      = var.service_account_create ? 0 : 1
-  project    = var.project_id
-  account_id = "${local.prefix}${var.name}"
-}
-
-resource "google_service_account" "service_account" {
-  count        = var.service_account_create ? 1 : 0
-  project      = var.project_id
-  account_id   = "${local.prefix}${var.name}"
+# create service accounts
+resource "google_service_account" "service_accounts" {
+  for_each     = local.names
+  account_id   = "${local.prefix}${lower(each.value)}"
   display_name = var.display_name
-  description  = var.description
+  description  = index(var.names, each.value) >= length(var.descriptions) ? var.description : element(var.descriptions, index(var.names, each.value))
+  project      = var.project_id
 }
 
-resource "google_service_account_key" "key" {
-  for_each           = var.generate_key ? { 1 = 1 } : {}
-  service_account_id = local.service_account.email
+# common roles
+resource "google_project_iam_member" "project-roles" {
+  for_each = local.project_roles_map_data
+
+  project = element(
+    split(
+      "=>",
+      each.value.role
+    ),
+    0,
+  )
+
+  role = element(
+    split(
+      "=>",
+      each.value.role
+    ),
+    1,
+  )
+
+  member = "serviceAccount:${google_service_account.service_accounts[each.value.name].email}"
 }
 
-resource "google_service_account_key" "upload_key" {
-  for_each           = local.public_keys_data
-  service_account_id = local.service_account.email
-  public_key_data    = each.value
+# conditionally assign billing user role at the org level
+resource "google_organization_iam_member" "billing_user" {
+  for_each = local.org_billing ? local.names : toset([])
+  org_id   = var.org_id
+  role     = "roles/billing.user"
+  member   = "serviceAccount:${google_service_account.service_accounts[each.value].email}"
+}
+
+# conditionally assign billing user role on a specific billing account
+resource "google_billing_account_iam_member" "billing_user" {
+  for_each           = local.account_billing ? local.names : toset([])
+  billing_account_id = var.billing_account_id
+  role               = "roles/billing.user"
+  member             = "serviceAccount:${google_service_account.service_accounts[each.value].email}"
+}
+
+# conditionally assign roles for shared VPC
+# ref: https://cloud.google.com/vpc/docs/shared-vpc
+
+resource "google_organization_iam_member" "xpn_admin" {
+  for_each = local.xpn ? local.names : toset([])
+  org_id   = var.org_id
+  role     = "roles/compute.xpnAdmin"
+  member   = "serviceAccount:${google_service_account.service_accounts[each.value].email}"
+}
+
+resource "google_organization_iam_member" "organization_viewer" {
+  for_each = local.xpn ? local.names : toset([])
+  org_id   = var.org_id
+  role     = "roles/resourcemanager.organizationViewer"
+  member   = "serviceAccount:${google_service_account.service_accounts[each.value].email}"
+}
+
+# keys
+resource "google_service_account_key" "keys" {
+  for_each           = var.generate_keys ? local.names : toset([])
+  service_account_id = google_service_account.service_accounts[each.value].email
 }

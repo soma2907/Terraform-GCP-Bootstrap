@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2022 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
  * limitations under the License.
  */
 
-terraform {
+/******************************************
+  Essential Contact configuration
+ *****************************************/
 
-  required_providers {
+resource "google_essential_contacts_contact" "contact" {
+  for_each = var.essential_contacts
 
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 3.53, < 5.0"
-    }
-  }
-
-  provider_meta "google" {
-    module_name = "blueprints/terraform/terraform-google-service-accounts/v4.2.0"
-  }
-
+  parent                              = "projects/${var.project_id}"
+  email                               = each.key
+  language_tag                        = var.language_tag
+  notification_category_subscriptions = each.value
 }

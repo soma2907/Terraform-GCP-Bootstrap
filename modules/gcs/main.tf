@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2019 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,116 +14,226 @@
  * limitations under the License.
  */
 
-locals {
-  prefix       = var.prefix == null ? "" : "${var.prefix}-"
-  notification = try(var.notification_config.enabled, false)
+/******************************************
+  Bucket random id suffix configuration
+ *****************************************/
+resource "random_id" "bucket_suffix" {
+  byte_length = 2
 }
 
-resource "google_storage_bucket" "bucket" {
-  name                        = "${local.prefix}${lower(var.name)}"
-  project                     = var.project_id
-  location                    = var.location
-  storage_class               = var.storage_class
-  force_destroy               = var.force_destroy
-  uniform_bucket_level_access = var.uniform_bucket_level_access
-  labels                      = var.labels
+locals {
+  suffix       = var.randomize_suffix ? random_id.bucket_suffix.hex : ""
+  names_set    = toset(var.names)
+  buckets_list = [for name in var.names : google_storage_bucket.buckets[name]]
+  first_bucket = local.buckets_list[0]
+  folder_list = flatten([
+    for bucket, folders in var.folders : [
+      for folder in folders : {
+        bucket = bucket,
+        folder = folder
+      }
+    ]
+  ])
+}
+
+resource "google_storage_bucket" "buckets" {
+  for_each = local.names_set
+
+  name                     = join("-", compact([var.prefix, each.value, local.suffix]))
+  project                  = var.project_id
+  location                 = var.location
+  storage_class            = var.storage_class
+  labels                   = merge(var.labels, { name = replace(join("-", compact([var.prefix, each.value])), ".", "-") })
+  public_access_prevention = var.public_access_prevention
+
+  force_destroy = lookup(
+    var.force_destroy,
+    lower(each.value),
+    false,
+  )
+  uniform_bucket_level_access = lookup(
+    var.bucket_policy_only,
+    lower(each.value),
+    true,
+  )
   versioning {
-    enabled = var.versioning
+    enabled = lookup(
+      var.versioning,
+      lower(each.value),
+      false,
+    )
   }
-
-  dynamic "website" {
-    for_each = var.website == null ? [] : [""]
-
+  default_event_based_hold = lookup(
+    var.default_event_based_hold,
+    lower(each.value),
+    false,
+  )
+  # Having a permanent encryption block with default_kms_key_name = "" works but results in terraform applying a change every run
+  # There is no enabled = false attribute available to ask terraform to ignore the block
+  dynamic "encryption" {
+    # If an encryption key name is set for this bucket name -> Create a single encryption block
+    for_each = trimspace(lookup(var.encryption_key_names, lower(each.value), "")) != "" ? [true] : []
     content {
-      main_page_suffix = var.website.main_page_suffix
-      not_found_page   = var.website.not_found_page
+      default_kms_key_name = trimspace(
+        lookup(
+          var.encryption_key_names,
+          lower(each.value),
+          "Error retrieving kms key name", # Should be unreachable due to the for_each check
+          # Omitting default is deprecated & can help show if there was a bug
+          # https://www.terraform.io/docs/configuration/functions/lookup.html
+        )
+      )
     }
   }
-
-  dynamic "encryption" {
-    for_each = var.encryption_key == null ? [] : [""]
-
+  dynamic "cors" {
+    for_each = var.cors
     content {
-      default_kms_key_name = var.encryption_key
+      origin          = lookup(cors.value, "origin", null)
+      method          = lookup(cors.value, "method", null)
+      response_header = lookup(cors.value, "response_header", null)
+      max_age_seconds = lookup(cors.value, "max_age_seconds", null)
+    }
+  }
+  dynamic "website" {
+    for_each = length(keys(var.website)) == 0 ? toset([]) : toset([var.website])
+    content {
+      main_page_suffix = lookup(website.value, "main_page_suffix", null)
+      not_found_page   = lookup(website.value, "not_found_page", null)
     }
   }
 
   dynamic "retention_policy" {
-    for_each = var.retention_policy == null ? [] : [""]
+    for_each = lookup(var.retention_policy, each.value, {}) != {} ? [var.retention_policy[each.value]] : []
     content {
-      retention_period = var.retention_policy.retention_period
-      is_locked        = var.retention_policy.is_locked
+      is_locked        = lookup(retention_policy.value, "is_locked", null)
+      retention_period = lookup(retention_policy.value, "retention_period", null)
     }
   }
 
-  dynamic "logging" {
-    for_each = var.logging_config == null ? [] : [""]
+  dynamic "custom_placement_config" {
+    for_each = lookup(var.custom_placement_config, each.value, {}) != {} ? [var.custom_placement_config[each.value]] : []
     content {
-      log_bucket        = var.logging_config.log_bucket
-      log_object_prefix = var.logging_config.log_object_prefix
-    }
-  }
-
-  dynamic "cors" {
-    for_each = var.cors == null ? [] : [""]
-    content {
-      origin          = var.cors.origin
-      method          = var.cors.method
-      response_header = var.cors.response_header
-      max_age_seconds = max(3600, var.cors.max_age_seconds)
+      data_locations = lookup(custom_placement_config.value, "data_locations", null)
     }
   }
 
   dynamic "lifecycle_rule" {
-    for_each = var.lifecycle_rules
-    iterator = rule
+    for_each = setunion(var.lifecycle_rules, lookup(var.bucket_lifecycle_rules, each.value, toset([])))
     content {
       action {
-        type          = rule.value.action.type
-        storage_class = rule.value.action.storage_class
+        type          = lifecycle_rule.value.action.type
+        storage_class = lookup(lifecycle_rule.value.action, "storage_class", null)
       }
       condition {
-        age                        = rule.value.condition.age
-        created_before             = rule.value.condition.created_before
-        custom_time_before         = rule.value.condition.custom_time_before
-        days_since_custom_time     = rule.value.condition.days_since_custom_time
-        days_since_noncurrent_time = rule.value.condition.days_since_noncurrent_time
-        matches_prefix             = rule.value.condition.matches_prefix
-        matches_storage_class      = rule.value.condition.matches_storage_class
-        matches_suffix             = rule.value.condition.matches_suffix
-        noncurrent_time_before     = rule.value.condition.noncurrent_time_before
-        num_newer_versions         = rule.value.condition.num_newer_versions
-        with_state                 = rule.value.condition.with_state
+        age                        = lookup(lifecycle_rule.value.condition, "age", null)
+        created_before             = lookup(lifecycle_rule.value.condition, "created_before", null)
+        with_state                 = lookup(lifecycle_rule.value.condition, "with_state", lookup(lifecycle_rule.value.condition, "is_live", false) ? "LIVE" : null)
+        matches_storage_class      = contains(keys(lifecycle_rule.value.condition), "matches_storage_class") ? split(",", lifecycle_rule.value.condition["matches_storage_class"]) : null
+        matches_prefix             = contains(keys(lifecycle_rule.value.condition), "matches_prefix") ? split(",", lifecycle_rule.value.condition["matches_prefix"]) : null
+        matches_suffix             = contains(keys(lifecycle_rule.value.condition), "matches_suffix") ? split(",", lifecycle_rule.value.condition["matches_suffix"]) : null
+        num_newer_versions         = lookup(lifecycle_rule.value.condition, "num_newer_versions", null)
+        custom_time_before         = lookup(lifecycle_rule.value.condition, "custom_time_before", null)
+        days_since_custom_time     = lookup(lifecycle_rule.value.condition, "days_since_custom_time", null)
+        days_since_noncurrent_time = lookup(lifecycle_rule.value.condition, "days_since_noncurrent_time", null)
+        noncurrent_time_before     = lookup(lifecycle_rule.value.condition, "noncurrent_time_before", null)
       }
+    }
+  }
+
+  dynamic "logging" {
+    for_each = lookup(var.logging, each.value, {}) != {} ? { v = lookup(var.logging, each.value) } : {}
+    content {
+      log_bucket        = lookup(logging.value, "log_bucket", null)
+      log_object_prefix = lookup(logging.value, "log_object_prefix", null)
     }
   }
 }
 
-resource "google_storage_bucket_iam_binding" "bindings" {
-  for_each = var.iam
-  bucket   = google_storage_bucket.bucket.name
-  role     = each.key
-  members  = each.value
+resource "google_storage_bucket_iam_binding" "admins" {
+  for_each = var.set_admin_roles ? local.names_set : []
+  bucket   = google_storage_bucket.buckets[each.value].name
+  role     = "roles/storage.objectAdmin"
+  members = compact(
+    concat(
+      var.admins,
+      split(
+        ",",
+        lookup(var.bucket_admins, each.value, ""),
+      ),
+    ),
+  )
 }
 
-resource "google_storage_notification" "notification" {
-  count              = local.notification ? 1 : 0
-  bucket             = google_storage_bucket.bucket.name
-  payload_format     = var.notification_config.payload_format
-  topic              = google_pubsub_topic.topic[0].id
-  custom_attributes  = var.notification_config.custom_attributes
-  event_types        = var.notification_config.event_types
-  object_name_prefix = var.notification_config.object_name_prefix
-  depends_on         = [google_pubsub_topic_iam_binding.binding]
+resource "google_storage_bucket_iam_binding" "creators" {
+  for_each = var.set_creator_roles ? local.names_set : toset([])
+  bucket   = google_storage_bucket.buckets[each.value].name
+  role     = "roles/storage.objectCreator"
+  members = compact(
+    concat(
+      var.creators,
+      split(
+        ",",
+        lookup(var.bucket_creators, each.value, ""),
+      ),
+    ),
+  )
 }
-resource "google_pubsub_topic_iam_binding" "binding" {
-  count   = local.notification ? 1 : 0
-  topic   = google_pubsub_topic.topic[0].id
-  role    = "roles/pubsub.publisher"
-  members = ["serviceAccount:${var.notification_config.sa_email}"]
+
+resource "google_storage_bucket_iam_binding" "viewers" {
+  for_each = var.set_viewer_roles ? local.names_set : toset([])
+  bucket   = google_storage_bucket.buckets[each.value].name
+  role     = "roles/storage.objectViewer"
+  members = compact(
+    concat(
+      var.viewers,
+      split(
+        ",",
+        lookup(var.bucket_viewers, each.value, ""),
+      ),
+    ),
+  )
 }
-resource "google_pubsub_topic" "topic" {
-  count   = local.notification ? 1 : 0
-  project = var.project_id
-  name    = var.notification_config.topic_name
+
+resource "google_storage_bucket_iam_binding" "hmac_key_admins" {
+  for_each = var.set_hmac_key_admin_roles ? local.names_set : toset([])
+  bucket   = google_storage_bucket.buckets[each.key].name
+  role     = "roles/storage.hmacKeyAdmin"
+  members = compact(
+    concat(
+      var.hmac_key_admins,
+      split(
+        ",",
+        lookup(var.bucket_hmac_key_admins, each.key, ""),
+      ),
+    ),
+  )
+}
+
+resource "google_storage_bucket_iam_binding" "storage_admins" {
+  for_each = var.set_storage_admin_roles ? local.names_set : toset([])
+  bucket   = google_storage_bucket.buckets[each.value].name
+  role     = "roles/storage.admin"
+  members = compact(
+    concat(
+      var.storage_admins,
+      split(
+        ",",
+        lookup(var.bucket_storage_admins, each.value, ""),
+      ),
+    ),
+  )
+}
+
+resource "google_storage_bucket_object" "folders" {
+  for_each = { for obj in local.folder_list : "${obj.bucket}_${obj.folder}" => obj }
+  bucket   = google_storage_bucket.buckets[each.value.bucket].name
+  name     = "${each.value.folder}/" # Declaring an object with a trailing '/' creates a directory
+  content  = "foo"                   # Note that the content string isn't actually used, but is only there since the resource requires it
+}
+
+resource "google_storage_hmac_key" "hmac_keys" {
+  project               = var.project_id
+  for_each              = var.set_hmac_access ? var.hmac_service_accounts : {}
+  service_account_email = each.key
+  state                 = each.value
 }

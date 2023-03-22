@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,29 +15,38 @@
  */
 
 locals {
-  folder = (
-    var.folder_create
-    ? try(google_folder.folder.0, null)
-    : try(data.google_folder.folder.0, null)
-  )
+  prefix       = var.prefix == "" ? "" : "${var.prefix}-"
+  folders_list = [for name in var.names : google_folder.folders[name]]
+  first_folder = local.folders_list[0]
+  folder_admin_roles_map_data = merge([
+    for name, config in var.per_folder_admins : {
+      for role in config.roles != null ? config.roles : var.folder_admin_roles : "${name}-${role}" =>
+      {
+        name    = name,
+        role    = role,
+        members = config.members,
+      }
+    }
+  ]...)
 }
 
-data "google_folder" "folder" {
-  count  = var.folder_create ? 0 : 1
-  folder = var.id
-}
+resource "google_folder" "folders" {
+  for_each = toset(var.names)
 
-resource "google_folder" "folder" {
-  count        = var.folder_create ? 1 : 0
-  display_name = var.name
+  display_name = "${local.prefix}${each.value}"
   parent       = var.parent
 }
 
-resource "google_essential_contacts_contact" "contact" {
-  provider                            = google-beta
-  for_each                            = var.contacts
-  parent                              = local.folder.name
-  email                               = each.key
-  language_tag                        = "en"
-  notification_category_subscriptions = each.value
+# give project creation access to service accounts
+# https://cloud.google.com/resource-manager/docs/access-control-folders#granting_folder-specific_roles_to_enable_project_creation
+
+resource "google_folder_iam_binding" "owners" {
+  for_each = var.set_roles ? local.folder_admin_roles_map_data : {}
+  folder   = google_folder.folders[each.value.name].name
+  role     = each.value.role
+
+  members = concat(
+    each.value.members,
+    var.all_folder_admins,
+  )
 }
